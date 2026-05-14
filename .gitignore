@@ -209,4 +209,7 @@ __marimo__/
 /Data/distances_with_zeros
 .DS_Store
 *.DS_Store
-.DS_Store
+
+*.png
+*.txt
+/CPD_on_SATAY2

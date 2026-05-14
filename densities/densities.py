@@ -3,10 +3,8 @@ import numpy as np
 import pandas as pd 
 import os, sys
 import argparse
-import tempfile
-os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "matplotlib"))
 import matplotlib.pyplot as plt 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from Utils.plot_config import setup_plot_style, COLORS
 from Utils.SGD_API.yeast_architecture import Nucleosomes
 
@@ -1569,7 +1567,7 @@ def parse_arguments():
     parser.add_argument(
         "--metric",
         choices=["density", "mean", "both"],
-        default="both",
+        default="density",
         help="Compute insertion-rate densities, mean insertion counts, or both."
     )
 

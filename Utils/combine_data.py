@@ -3,10 +3,6 @@ import pandas as pd
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) 
-from Utils.reader import read_csv_file_with_distances
-import random
-import itertools
-import shutil
 import argparse
 
 # Mapping of replicate names to their strain folders
@@ -212,7 +208,7 @@ def combine_strain_datasets(input_folder, output_folder, method="average"):
     strain_data = {}
     
     # Iterate through each strain folder
-    for strain_folder in sorted(os.listdir(input_folder)):
+    for strain_folder in os.listdir(input_folder):
         strain_path = os.path.join(input_folder, strain_folder)
         
         if not os.path.isdir(strain_path) or strain_folder.startswith('.'):
@@ -221,7 +217,7 @@ def combine_strain_datasets(input_folder, output_folder, method="average"):
         print(f"\nProcessing strain: {strain_folder}")
         
         # Get all replicate folders within this strain
-        replicate_folders = [f for f in sorted(os.listdir(strain_path)) 
+        replicate_folders = [f for f in os.listdir(strain_path) 
                            if os.path.isdir(os.path.join(strain_path, f)) and not f.startswith('.')]
         
         if not replicate_folders:
@@ -235,8 +231,8 @@ def combine_strain_datasets(input_folder, output_folder, method="average"):
         
         # Process each chromosome
         for chrom in chromosome_length.keys():
-            replicate_frames = []
-
+            position_data = {}
+            
             # Collect data from all replicates for this chromosome
             for replicate in replicate_folders:
                 csv_file = os.path.join(strain_path, replicate, f"{chrom}_distances.csv")
@@ -245,36 +241,55 @@ def combine_strain_datasets(input_folder, output_folder, method="average"):
                     print(f"  Warning: {csv_file} not found, skipping")
                     continue
                 
-                replicate_frames.append(pd.read_csv(csv_file))
-
-            if replicate_frames:
-                combined_df = pd.concat(replicate_frames, ignore_index=True)
-
+                df = pd.read_csv(csv_file)
+                
+                for _, row in df.iterrows():
+                    pos = int(row['Position'])
+                    value = row['Value']
+                    nuc_dist = row['Nucleosome_Distance']
+                    cent_dist = row['Centromere_Distance']
+                    
+                    if pos not in position_data:
+                        position_data[pos] = {
+                            'values': [],
+                            'nucleosome_distance': nuc_dist,
+                            'centromere_distance': cent_dist
+                        }
+                    position_data[pos]['values'].append(value)
+            
+            # Compute combined values for this chromosome
+            combined_data = []
+            for pos in sorted(position_data.keys()):
+                values = position_data[pos]['values']
+                
                 if method == "average":
-                    non_zero_values = combined_df["Value"].where(combined_df["Value"] != 0)
-                    combined_values = (
-                        non_zero_values
-                        .groupby(combined_df["Position"])
-                        .mean()
-                        .fillna(0.0)
-                        .rename("Value")
-                    )
+                    # Only consider non-zero values for averaging
+                    non_zero_values = [v for v in values if v != 0]
+                    
+                    if len(non_zero_values) == 0:
+                        # All values are zero
+                        combined_value = 0.0
+                    elif len(non_zero_values) == 1:
+                        # Only one non-zero value, use it directly
+                        combined_value = non_zero_values[0]
+                    else:
+                        # Two or more non-zero values, take the average
+                        combined_value = np.mean(non_zero_values)
                 elif method == "sum":
-                    combined_values = combined_df.groupby("Position")["Value"].sum()
+                    combined_value = np.sum(values)
                 else:
                     raise ValueError(f"Unknown method: {method}")
-
-                distances = combined_df.groupby("Position", as_index=True)[
-                    ["Nucleosome_Distance", "Centromere_Distance"]
-                ].first()
-
-                combined_strain[chrom] = (
-                    distances
-                    .join(combined_values)
-                    .reset_index()
-                    [["Position", "Value", "Nucleosome_Distance", "Centromere_Distance"]]
-                    .sort_values("Position")
-                )
+                
+                combined_data.append({
+                    'Position': pos,
+                    'Value': combined_value,
+                    'Nucleosome_Distance': position_data[pos]['nucleosome_distance'],
+                    'Centromere_Distance': position_data[pos]['centromere_distance']
+                })
+            
+            # Convert to DataFrame
+            if combined_data:
+                combined_strain[chrom] = pd.DataFrame(combined_data)
             else:
                 combined_strain[chrom] = pd.DataFrame(columns=['Position', 'Value', 'Nucleosome_Distance', 'Centromere_Distance'])
         
@@ -296,14 +311,13 @@ def combine_strain_datasets(input_folder, output_folder, method="average"):
 def parse_arguments():
     """Parse command line arguments for combining processed SATAY datasets."""
     parser = argparse.ArgumentParser(
-        description="Combine distance-annotated SATAY replicate folders into strain-level datasets.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Combine distance-annotated SATAY replicate folders into strain-level datasets."
     )
 
     parser.add_argument(
         "--input_dir",
         type=str,
-        default="Data/distances_with_zeros",
+        default="Data/distances_with_zeros_new",
         help="Folder containing strain folders with distance-annotated replicate datasets."
     )
 

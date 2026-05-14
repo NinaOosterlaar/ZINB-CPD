@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
 	sys.path.append(PROJECT_ROOT)
 
-from Signal_processing.ZINB_MLE.EM import em_zinb_step
+from CPD_on_SATAY.ZINB_MLE.EM import em_zinb_step
 
 
 RESULT_FILENAME_RE = re.compile(
@@ -68,7 +68,7 @@ def remove_top_quantile_outliers(data, quantile=0.99, threshold=None):
 
 
 def parse_result_file(result_file):
-	"""Parse change points and theta from a version3 result file."""
+	"""Parse change points and theta from a CPD result file."""
 	change_points = []
 	theta_global = None
 	in_cp_section = True
@@ -336,7 +336,7 @@ def process_dataset(dataset_num, base_data_folder, base_results_folder, output_b
 
 def parse_arguments():
 	parser = argparse.ArgumentParser(
-		description="Estimate segment-level mu from version3 change point files using fixed global theta."
+		description="Estimate segment-level mu from change point files using fixed global theta."
 	)
 	parser.add_argument(
 		"--base_data_folder",
@@ -347,13 +347,13 @@ def parse_arguments():
 	parser.add_argument(
 		"--base_results_folder",
 		type=str,
-		default="Signal_processing/results_new/compare_window_performance",
-		help="Folder containing version3 CPD outputs (input).",
+		default="results/CPD_segments",
+		help="Folder containing CPD outputs (input).",
 	)
 	parser.add_argument(
 		"--output_base_folder",
 		type=str,
-		default="Signal_processing/results_new/essentiality_score",
+		default="results/essentiality_score",
 		help="Base folder where segment mu outputs will be written.",
 	)
 	parser.add_argument(

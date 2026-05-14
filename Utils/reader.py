@@ -134,76 +134,6 @@ def label_from_filename(fname: str) -> str:
     return head
 
 
-def compute_nucleosome_distance_array(nucleosome_obj, chrom):
-    """Compute nearest nucleosome-center distance for every position in a chromosome."""
-    length = chromosome_length[chrom]
-    nucleosome_middles = np.array(nucleosome_obj.get_middles(chrom), dtype=np.int64)
-
-    if nucleosome_middles.size == 0:
-        return np.full(length, np.nan)
-
-    nucleosome_middles.sort()
-    positions = np.arange(1, length + 1, dtype=np.int64)
-    insertion_points = np.searchsorted(nucleosome_middles, positions)
-
-    left = np.full(length, np.iinfo(np.int64).max, dtype=np.int64)
-    right = np.full(length, np.iinfo(np.int64).max, dtype=np.int64)
-
-    has_left = insertion_points > 0
-    has_right = insertion_points < nucleosome_middles.size
-    left[has_left] = positions[has_left] - nucleosome_middles[insertion_points[has_left] - 1]
-    right[has_right] = nucleosome_middles[insertion_points[has_right]] - positions[has_right]
-
-    return np.minimum(left, right)
-
-
-def compute_centromere_distance_array(centromere_obj, chrom):
-    """Compute signed distance to centromere middle for every position in a chromosome."""
-    length = chromosome_length[chrom]
-    middle = centromere_obj.get_middle(chrom)
-
-    if middle is None:
-        return np.full(length, np.nan)
-
-    return np.arange(1, length + 1, dtype=np.int64) - middle
-
-
-def build_distance_dataframe(df, chrom, nucleosome_distances, centromere_distances, with_zeros):
-    """Build one distance-annotated chromosome dataframe."""
-    if chrom not in chromosome_length:
-        raise ValueError(f"Unknown chromosome length for {chrom}")
-
-    length = chromosome_length[chrom]
-    observed = df.copy()
-    observed["Position"] = observed["Position"].astype(np.int64)
-    observed["Value"] = observed["Value"].astype(np.int64)
-    observed = observed.groupby("Position", as_index=False)["Value"].sum()
-
-    valid_positions = observed["Position"].between(1, length)
-    invalid_count = len(observed) - int(valid_positions.sum())
-    if invalid_count:
-        print(f"Warning: skipping {invalid_count} out-of-range positions for {chrom}")
-        observed = observed.loc[valid_positions]
-
-    if with_zeros:
-        positions = np.arange(1, length + 1, dtype=np.int64)
-        values = np.zeros(length, dtype=np.int64)
-        values[observed["Position"].to_numpy() - 1] = observed["Value"].to_numpy()
-
-        distances_df = pd.DataFrame({
-            "Position": positions,
-            "Value": values,
-            "Nucleosome_Distance": nucleosome_distances[chrom],
-            "Centromere_Distance": centromere_distances[chrom],
-        })
-        return distances_df
-
-    positions = observed["Position"].to_numpy()
-    observed["Nucleosome_Distance"] = nucleosome_distances[chrom][positions - 1]
-    observed["Centromere_Distance"] = centromere_distances[chrom][positions - 1]
-    return observed[["Position", "Value", "Nucleosome_Distance", "Centromere_Distance"]].sort_values("Position")
-
-
 def compute_distances(input_folder, output_folder, with_zeros = True):
     """For each signal in the SATAY wig file, compute its distance from the nearest nucleosome and centromere.
 
@@ -217,8 +147,6 @@ def compute_distances(input_folder, output_folder, with_zeros = True):
 
     nucleosome_obj = Nucleosomes()
     centromere_obj = Centromeres()
-    nucleosome_distances = {}
-    centromere_distances = {}
     
     for root, dirs, files in os.walk(input_folder):
         for wig_file in files:
@@ -239,23 +167,44 @@ def compute_distances(input_folder, output_folder, with_zeros = True):
             print(f"Processing wig file: {wig_file_path}")
             wig_data = read_wig(wig_file_path)
 
-            for chrom in tqdm(wig_data, total=len(wig_data)):
+            for i, chrom in tqdm(enumerate(wig_data), total=len(wig_data)):
                 df = wig_data[chrom]
                 if df.empty:
                     print(f"No data for {chrom} in {wig_file}. Skipping.")
                     continue
+                # Initialize lists to store distances
+                distances = []
+                
+                for _, row in df.iterrows():
+                    position = int(row['Position'])
+                    value = row['Value']
 
-                if chrom not in nucleosome_distances:
-                    nucleosome_distances[chrom] = compute_nucleosome_distance_array(nucleosome_obj, chrom)
-                    centromere_distances[chrom] = compute_centromere_distance_array(centromere_obj, chrom)
-
-                distances_df = build_distance_dataframe(
-                    df=df,
-                    chrom=chrom,
-                    nucleosome_distances=nucleosome_distances,
-                    centromere_distances=centromere_distances,
-                    with_zeros=with_zeros
-                )
+                    # Compute distance to nearest nucleosome
+                    nucleosome_distance = nucleosome_obj.compute_distance(chrom, position)
+                    centromere_distance = centromere_obj.compute_distance(chrom, position)
+                    distances.append({
+                        'Position': position,
+                        'Value': value,
+                        'Nucleosome_Distance': nucleosome_distance,
+                        'Centromere_Distance': centromere_distance
+                    })
+                    
+                if with_zeros:
+                    for i in range(1, chromosome_length[chrom] + 1):
+                        if i not in df['Position'].values:
+                            nucleosome_distance = nucleosome_obj.compute_distance(chrom, i)
+                            centromere_distance = centromere_obj.compute_distance(chrom, i)
+                            distances.append({
+                                'Position': i,
+                                'Value': 0,
+                                'Nucleosome_Distance': nucleosome_distance,
+                                'Centromere_Distance': centromere_distance
+                            })
+                # Sort by Position
+                distances = sorted(distances, key=lambda x: x['Position'])
+                    
+                # Convert to DataFrame
+                distances_df = pd.DataFrame(distances)
 
                 # Save each chromosome to its own file
                 output_file = os.path.join(wig_output_folder, f"{chrom}_distances.csv")
@@ -318,8 +267,8 @@ def parse_arguments():
     parser.add_argument(
         "--output_dir", 
         type=str, 
-        default="Data/distances_with_zeros",
-        help="Path to the folder where the output CSV files will be saved (default: Data/distances_with_zeros)"
+        default="Data_exploration/results/distances_with_zeros",
+        help="Path to the folder where the output CSV files will be saved (default: Data_exploration/results/distances_with_zeros)"
     )
     
     parser.add_argument(

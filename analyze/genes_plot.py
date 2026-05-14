@@ -1,6 +1,11 @@
 import json
 import argparse
+import os
+import tempfile
 import pandas as pd
+
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "matplotlib"))
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.colors import TwoSlopeNorm
@@ -9,7 +14,7 @@ from pathlib import Path
 
 # Add parent directory to path for imports
 import sys
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 from Utils.plot_config import setup_plot_style
 
 # Setup plotting style
@@ -44,13 +49,14 @@ window_size = 100
 overlap = 50
 padding_bp = 500  # Base pairs to show before and after gene
 mu_z_threshold = 0.25  # muZ parameter for merged segments
+segment_source = "merged"
 
 # Paths
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(__file__).resolve().parents[1]
 gene_info_path = BASE_DIR / "Utils" / "SGD_API" / "architecture_info" / "yeast_genes_with_info.json"
-strains_data_path = BASE_DIR / "SATAY_CPD_results" / "CPD_SATAY_results"
+strains_data_path = BASE_DIR / "results" / "CPD_segments"
 count_data_path = BASE_DIR / "Data" / "combined_strains"
-output_dir = BASE_DIR / "SATAY_CPD_results" / "results" / "genes_overview_plots"
+output_dir = BASE_DIR / "results" / "genes_overview_plots"
 
 
 def load_gene_info():
@@ -78,11 +84,25 @@ def load_strain_segments(strain, chromosome, threshold, window_size):
     """Load segment data for a specific strain, chromosome, and threshold."""
     # Convert chromosome format
     chr_short = chromosome.replace('Chromosome_', 'Chr')
-    
-    # Use merged_segments directory
-    file_path = (strains_data_path / f"strain_{strain}" / chr_short / 
-                 f"{chr_short}_distances" / f"window{window_size}" / "merged_segments" /
-                 f"{chr_short}_th{threshold:.2f}_merged_segments_muZ{mu_z_threshold:.2f}.csv")
+
+    result_dir = (
+        strains_data_path / f"strain_{strain}" / chr_short /
+        f"{chr_short}_distances" / f"window{window_size}"
+    )
+
+    if segment_source == "merged":
+        file_path = (
+            result_dir / "merged_segments" /
+            f"{chr_short}_th{threshold:.2f}_merged_segments_muZ{mu_z_threshold:.2f}.csv"
+        )
+    elif segment_source == "unmerged":
+        overlap_percent = int(overlap * 100) if overlap <= 1 else int(overlap)
+        file_path = (
+            result_dir / "segment_mu" /
+            f"{chr_short}_distances_ws{window_size}_ov{overlap_percent}_th{threshold:.2f}_segment_mu.csv"
+        )
+    else:
+        raise ValueError(f"Unknown segment source: {segment_source}")
     
     if not file_path.exists():
         print(f"Warning: File not found: {file_path}")
@@ -372,7 +392,7 @@ def plot_gene_overview(gene_name, gene_info, strain_percentiles):
     plt.tight_layout()
     
     # Save figure
-    output_file = output_dir / f"{gene_name}_{gene_info['orf']}_overview_merged.png"
+    output_file = output_dir / f"{gene_name}_{gene_info['orf']}_overview_{segment_source}.png"
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Saved: {output_file}")
     
@@ -393,8 +413,15 @@ def parse_args():
     parser.add_argument("--threshold", type=float, default=threshold, help="CPD threshold used in segment filenames.")
     parser.add_argument("--strains", nargs="+", default=strains, help="Strains to include in the plot.")
     parser.add_argument("--window_size", type=int, default=window_size, help="Window size used in CPD results.")
+    parser.add_argument("--overlap", type=float, default=overlap, help="CPD overlap used in unmerged segment filenames. Accepts either 0.5 or 50 for 50%%.")
     parser.add_argument("--padding_bp", type=int, default=padding_bp, help="Base pairs to show before and after each gene.")
     parser.add_argument("--mu_z_threshold", type=float, default=mu_z_threshold, help="Merged-segment muZ threshold.")
+    parser.add_argument(
+        "--segment_source",
+        choices=["merged", "unmerged"],
+        default=segment_source,
+        help="Use merged segment files or raw segment_mu files for gene overview plots.",
+    )
     parser.add_argument("--gene_info_path", default=str(gene_info_path), help="Path to yeast gene annotation JSON.")
     parser.add_argument("--strains_data_path", default=str(strains_data_path), help="Path to SATAY CPD result folders.")
     parser.add_argument("--count_data_path", default=str(count_data_path), help="Path to raw strain count folders.")
@@ -403,7 +430,8 @@ def parse_args():
 
 
 def apply_args(args):
-    global genes, protein_domain, threshold, strains, window_size, padding_bp, mu_z_threshold
+    global genes, protein_domain, threshold, strains, window_size, overlap, padding_bp
+    global mu_z_threshold, segment_source
     global gene_info_path, strains_data_path, count_data_path, output_dir
 
     genes = args.genes if args.genes is not None else DEFAULT_GENES.copy()
@@ -411,8 +439,10 @@ def apply_args(args):
     threshold = args.threshold
     strains = args.strains
     window_size = args.window_size
+    overlap = args.overlap
     padding_bp = args.padding_bp
     mu_z_threshold = args.mu_z_threshold
+    segment_source = args.segment_source
     gene_info_path = Path(args.gene_info_path)
     strains_data_path = Path(args.strains_data_path)
     count_data_path = Path(args.count_data_path)
@@ -434,7 +464,10 @@ def main(args=None):
     print(f"Threshold: {threshold}")
     print(f"Strains: {', '.join(strains)}")
     print(f"Padding: ±{padding_bp} bp")
-    print(f"Using merged segments with muZ threshold: {mu_z_threshold}")
+    if segment_source == "merged":
+        print(f"Using merged segments with muZ threshold: {mu_z_threshold}")
+    else:
+        print(f"Using unmerged segment_mu files with overlap: {overlap}")
     print(f"Output directory: {output_dir}\n")
     
     for gene_name in genes:

@@ -19,16 +19,15 @@ from functools import partial
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 # Import reusable functions from pure_estimation
-from Signal_processing.essentiality_calculation.pure_estimation import (
+from essentiality_calculation.pure_estimation import (
     read_count_data,
     parse_result_file,
     create_segments_with_mu_estimates,
-    remove_top_quantile_outliers
 )
 
 # # List of strains to process
@@ -392,7 +391,7 @@ def parse_arguments():
     parser.add_argument(
         "--base_results_folder",
         type=str,
-        default="SATAY_CPD_results/CPD_SATAY_results",
+        default="results/CPD_segments",
         help="Folder containing change point detection results.",
     )
     parser.add_argument(
@@ -436,14 +435,14 @@ def parse_arguments():
     parser.add_argument(
         "--summary_output",
         type=str,
-        default="Signal_processing/results_new/essentiality_calculation/strain_essentiality_summary.csv",
+        default="results/essentiality/strain_essentiality_summary.csv",
         help="Path for summary statistics CSV.",
     )
     parser.add_argument(
         "--workers",
         type=int,
         default=8,
-        help="Number of parallel workers to use for processing strains (default: 4).",
+        help="Number of parallel workers to use for processing strains (default: 8).",
     )
     return parser.parse_args()
 
@@ -473,7 +472,6 @@ def main():
     print(f"Summary output: {summary_output}")
     print("="*80)
     
-    # Process each strain in parallel
     summaries = []
     
     # Create a partial function with fixed parameters
@@ -488,25 +486,33 @@ def main():
         max_iter=args.max_iter
     )
     
-    # Use ProcessPoolExecutor for parallel processing
-    with ProcessPoolExecutor(max_workers=args.workers) as executor:
-        # Submit all strain processing tasks
-        future_to_strain = {
-            executor.submit(process_func, strain_name): strain_name
-            for strain_name in args.strains
-        }
-        
-        # Collect results as they complete
-        for future in as_completed(future_to_strain):
-            strain_name = future_to_strain[future]
+    if args.workers <= 1:
+        for strain_name in args.strains:
             try:
-                summary = future.result()
+                summary = process_func(strain_name)
                 if summary is not None:
                     summaries.append(summary)
             except Exception as exc:
                 print(f"\n{'='*80}")
                 print(f"ERROR: {strain_name} generated an exception: {exc}")
                 print(f"{'='*80}\n")
+    else:
+        with ProcessPoolExecutor(max_workers=args.workers) as executor:
+            future_to_strain = {
+                executor.submit(process_func, strain_name): strain_name
+                for strain_name in args.strains
+            }
+
+            for future in as_completed(future_to_strain):
+                strain_name = future_to_strain[future]
+                try:
+                    summary = future.result()
+                    if summary is not None:
+                        summaries.append(summary)
+                except Exception as exc:
+                    print(f"\n{'='*80}")
+                    print(f"ERROR: {strain_name} generated an exception: {exc}")
+                    print(f"{'='*80}\n")
     
     # Save summary statistics
     if summaries:

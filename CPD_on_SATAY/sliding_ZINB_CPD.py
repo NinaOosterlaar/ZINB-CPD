@@ -4,35 +4,35 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import argparse
 from concurrent.futures import ProcessPoolExecutor
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from Signal_processing.ZINB_MLE.estimate_ZINB import estimate_zinb
-from Signal_processing.ZINB_MLE.EM import em_zinb_step
-from Signal_processing.ZINB_MLE.log_likelihoods import zinb_log_likelihood
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from CPD_on_SATAY.ZINB_MLE.estimate_ZINB import estimate_zinb
+from CPD_on_SATAY.ZINB_MLE.EM import em_zinb_step
+from CPD_on_SATAY.ZINB_MLE.log_likelihoods import zinb_log_likelihood
 
 
 def load_density_lookup_tables(nucleosome_file, centromere_file):
     """Load the density lookup tables from CSV files.
     
     Returns:
-        nucleosome_df: DataFrame with 'distance' and 'mean_density' columns
-        centromere_df: DataFrame with 'Bin_Center' and 'mean_density' columns
+        nucleosome_df: DataFrame with distance and insertion-rate columns
+        centromere_df: DataFrame with bin-center and insertion-rate columns
     """
     nucleosome_df = pd.read_csv(nucleosome_file)
     centromere_df = pd.read_csv(centromere_file)
     return nucleosome_df, centromere_df
 
 
-def interpolate_density(distance, lookup_df, distance_col, density_col='mean_density'):
+def interpolate_density(distance, lookup_df, distance_col, density_col='Insertion_Rate'):
     """Interpolate density value for a given distance using linear interpolation.
     
     Args:
         distance: The distance value to interpolate for
-        lookup_df: DataFrame containing distance and mean_density columns
+        lookup_df: DataFrame containing distance and insertion-rate columns
         distance_col: Name of the distance column 
-        density_col: Name of the density column (default: 'mean_density')
+        density_col: Name of the insertion-rate column
     
     Returns:
-        Interpolated mean_density value
+        Interpolated insertion-rate value
     
     Raises:
         ValueError: If distance is outside the range of available data
@@ -66,7 +66,7 @@ def extract_change_points_from_scores(scores, window_size, overlap, threshold):
 
     return change_points
 
-def sliding_ZINB_CPD_v3(
+def sliding_ZINB_CPD(
     data,
     nucleosome_distances,
     centromere_distances,
@@ -77,11 +77,11 @@ def sliding_ZINB_CPD_v3(
     theta_global=None,
     tol=1e-6,
     max_iter=10,
-    nucleosome_file="Data_exploration/results/densities/nucleosome_new/combined_All_Boolean_True/ALL_combined_Boolean_True_nucleosome_density.csv",
-    centromere_file="Data_exploration/results/densities/centromere_new/combined_All_Boolean_True/ALL_combined_Boolean_True_centromere_density.csv",
+    nucleosome_file="Data/combined_strains/strain_yEK23/combined_nucleosome_density.csv",
+    centromere_file="Data/combined_strains/strain_yEK23/combined_centromere_density_bin10000.csv",
     nucleosome_distance_col="distance",
     centromere_distance_col="Bin_Center",
-    density_col="mean_density"
+    density_col="Insertion_Rate"
 ):
     data = np.asarray(data, dtype=np.float64)
     step_size = max(1, int(window_size * (1 - overlap)))
@@ -89,11 +89,11 @@ def sliding_ZINB_CPD_v3(
     max_nucl_distance = np.max(np.array([nucleosome_distances]))
     nucleosome_df, centromere_df = load_density_lookup_tables(nucleosome_file, centromere_file)
 
-    # Create a lookup table for distance to mean density for nucleosomes
+    # Create a lookup table for distance to insertion rate for nucleosomes
     distance_to_density = nucleosome_df.set_index(nucleosome_distance_col)[density_col]
     distance_to_density = distance_to_density.reindex(range(max_nucl_distance + 1), fill_value=0)
 
-    # Create a lookup table for distance to mean density for centromeres
+    # Create a lookup table for distance to insertion rate for centromeres
     centromere_distance_to_density = centromere_df.set_index(centromere_distance_col)[density_col]
 
     if theta_global is None or theta_global <= 0:
@@ -112,7 +112,7 @@ def sliding_ZINB_CPD_v3(
         if centr_dist_middle > centromere_distance_to_density.index.max():
             centr_dist_middle = centromere_distance_to_density.index.max()
 
-        # Version 3: pi0 from centromere-dependent saturation/density
+        # pi0 is informed by centromere-dependent insertion rate.
         s0 = interpolate_density(
             centr_dist_middle,
             centromere_distance_to_density.reset_index(),
@@ -192,7 +192,7 @@ def process_window_size(ws, data, nucleosome_distances, centromere_distances, ov
     window_output_folder = os.path.join(output_folder, f"window{ws}")
 
     print(f"Processing window size: {ws} (single sliding pass for all thresholds)")
-    _, scores = sliding_ZINB_CPD_v3(
+    _, scores = sliding_ZINB_CPD(
         data,
         nucleosome_distances,
         centromere_distances,
@@ -213,7 +213,7 @@ def process_window_size(ws, data, nucleosome_distances, centromere_distances, ov
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Apply a sliding window mean change point detection algorithm on discrete count data.")
     parser.add_argument("input_file", type=str, help="Path to the input CSV file containing the count data.")
-    parser.add_argument("--output_folder", type=str, default="Signal_processing/results/sliding_mean/sliding_ZINB_CPD", help="Output folder for results.")
+    parser.add_argument("--output_folder", type=str, default="results/CPD_segments", help="Output folder for results.")
     parser.add_argument("--dataset_name", type=str, default="dataset", help="Name of the dataset being processed.")
     parser.add_argument("--n_workers", type=int, default=1, help="Number of parallel workers/CPUs to use.")
     parser.add_argument("--theta_global", type=float, default=0, help="Global theta value to use for all windows (if not provided, it will be estimated from the data).")
@@ -223,7 +223,7 @@ def parse_arguments():
 if __name__ == "__main__":
     # Configuration
     base_data_folder = "Data/SATAY_synthetic"
-    base_output_folder = "Signal_processing/results/version4"
+    base_output_folder = "results/CPD_segments"
     
     window_size = [100]
     overlap = 0.5

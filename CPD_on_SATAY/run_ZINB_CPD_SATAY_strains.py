@@ -1,5 +1,5 @@
 """
-Run sliding_ZINB_CPD_v3_SATAY.py on all strains from Data/combined_strains.
+Run sliding_ZINB_CPD_SATAY.py on all strains from Data/combined_strains.
 Processes all chromosomes for each strain with their corresponding density files.
 """
 
@@ -13,7 +13,7 @@ from threading import Lock
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Thread-safe lock for printing
@@ -253,7 +253,7 @@ def process_strain(
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
-        description="Run sliding_ZINB_CPD_v3_SATAY.py on all strains from Data/combined_strains."
+        description="Run sliding_ZINB_CPD_SATAY.py on all strains from Data/combined_strains."
     )
     parser.add_argument(
         "--threshold_start",
@@ -288,25 +288,25 @@ def main():
     parser.add_argument(
         "--centromere_base",
         type=Path,
-        default=PROJECT_ROOT / "Data_exploration" / "results" / "densities" / "centromere_strains" / "combined_Datasets_Boolean_True_bin_10000_absolute",
+        default=PROJECT_ROOT / "results" / "bias_plots" / "combined_strains" / "density" / "centromere" / "combined_Datasets_Boolean_True_bin_10000_absolute",
         help="Folder containing strain centromere density files.",
     )
     parser.add_argument(
         "--nucleosome_base",
         type=Path,
-        default=PROJECT_ROOT / "Data_exploration" / "results" / "densities" / "nucleosome_strains" / "combined_Datasets_Boolean_True",
+        default=PROJECT_ROOT / "results" / "bias_plots" / "combined_strains" / "density" / "nucleosome" / "combined_Datasets_Boolean_True",
         help="Folder containing strain nucleosome density files.",
     )
     parser.add_argument(
         "--output_base",
         type=Path,
-        default=PROJECT_ROOT / "SATAY_CPD_results" / "CPD_SATAY_results",
+        default=PROJECT_ROOT / "results" / "CPD_segments",
         help="Output folder for whole-genome SATAY CPD results.",
     )
     parser.add_argument(
         "--cpd_script",
         type=Path,
-        default=PROJECT_ROOT / "Signal_processing" / "CPD_on_SATAY" / "sliding_ZINB_CPD_v3_SATAY.py",
+        default=PROJECT_ROOT / "CPD_on_SATAY" / "sliding_ZINB_CPD_SATAY.py",
         help="Path to the single-file CPD script.",
     )
     parser.add_argument("--window_size", type=int, default=100)
@@ -343,7 +343,7 @@ def main():
     timeout_seconds = args.timeout_seconds
     
     print("=" * 80)
-    print("Running sliding_ZINB_CPD_v3_SATAY.py on all strains")
+    print("Running sliding_ZINB_CPD_SATAY.py on all strains")
     print("=" * 80)
     print(f"Input data:   {strains_data}")
     print(f"Centromeres:  {centromere_base}")

@@ -6,12 +6,12 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
+    sys.path.insert(0, PROJECT_ROOT)
 
-from Signal_processing.ZINB_MLE.estimate_ZINB import estimate_zinb
-from Signal_processing.CPD_algorithms.sliding_ZINB.sliding_ZINB_CPD_v3 import sliding_ZINB_CPD_v3
+from CPD_on_SATAY.ZINB_MLE.estimate_ZINB import estimate_zinb
+from CPD_on_SATAY.sliding_ZINB_CPD import sliding_ZINB_CPD
 
 
 DEFAULT_CHROMS = [
@@ -56,8 +56,12 @@ def load_density_lookup_tables(nucleosome_file, centromere_file):
     return nucleosome_df, centromere_df
 
 
-def interpolate_density(distance, lookup_df, distance_col, density_col="mean_density"):
-    """Interpolate a density value for a given distance."""
+def interpolate_density(distance, lookup_df, distance_col, density_col="Insertion_Rate"):
+    """Interpolate a density value for a given distance.
+    
+    Note: This function is defined here but NOT used. The actual interpolate_density
+    used is from sliding_ZINB_CPD.py module. This is kept for consistency.
+    """
     distances = lookup_df[distance_col].values
     densities = lookup_df[density_col].values
 
@@ -137,7 +141,7 @@ def apply_threshold_to_scores(scores, threshold, window_size, overlap, step_size
     without re-computing the statistical test.
     
     Args:
-        scores: List of LRT scores from sliding_ZINB_CPD_v3
+        scores: List of LRT scores from sliding_ZINB_CPD
         threshold: LRT score threshold for detecting change points
         window_size: Size of sliding window (used for minimum distance between CPs)
         overlap: Overlap fraction between windows (0 to 1)
@@ -249,7 +253,7 @@ def process_window_size(
     
     # Compute scores ONCE with threshold=0 (no filtering)
     print(f"Processing window size: {ws} (computing scores once for {len(thresholds)} thresholds)")
-    change_points_dummy, scores = sliding_ZINB_CPD_v3(
+    change_points_dummy, scores = sliding_ZINB_CPD(
         data,
         nucleosome_distances,
         centromere_distances,
