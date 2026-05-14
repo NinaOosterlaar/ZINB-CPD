@@ -1,0 +1,98 @@
+{
+    "ChrI": {
+        "start": 151465,
+        "end": 151582,
+        "middle": 151523,
+        "length": 117
+    },
+    "ChrII": {
+        "start": 238207,
+        "end": 238323,
+        "middle": 238265,
+        "length": 116
+    },
+    "ChrIII": {
+        "start": 114385,
+        "end": 114501,
+        "middle": 114443,
+        "length": 116
+    },
+    "ChrIV": {
+        "start": 449711,
+        "end": 449821,
+        "middle": 449766,
+        "length": 110
+    },
+    "ChrV": {
+        "start": 151987,
+        "end": 152104,
+        "middle": 152045,
+        "length": 117
+    },
+    "ChrVI": {
+        "start": 148510,
+        "end": 148627,
+        "middle": 148568,
+        "length": 117
+    },
+    "ChrVII": {
+        "start": 496920,
+        "end": 497038,
+        "middle": 496979,
+        "length": 118
+    },
+    "ChrVIII": {
+        "start": 105586,
+        "end": 105703,
+        "middle": 105644,
+        "length": 117
+    },
+    "ChrIX": {
+        "start": 355629,
+        "end": 355745,
+        "middle": 355687,
+        "length": 116
+    },
+    "ChrX": {
+        "start": 436307,
+        "end": 436425,
+        "middle": 436366,
+        "length": 118
+    },
+    "ChrXI": {
+        "start": 440129,
+        "end": 440246,
+        "middle": 440187,
+        "length": 117
+    },
+    "ChrXII": {
+        "start": 150828,
+        "end": 150947,
+        "middle": 150887,
+        "length": 119
+    },
+    "ChrXIII": {
+        "start": 268031,
+        "end": 268149,
+        "middle": 268090,
+        "length": 118
+    },
+    "ChrXIV": {
+        "start": 628758,
+        "end": 628875,
+        "middle": 628816,
+        "length": 117
+    },
+    "ChrXV": {
+        "start": 326584,
+        "end": 326702,
+        "middle": 326643,
+        "length": 118
+    },
+    "ChrXVI": {
+        "start": 555957,
+        "end": 556073,
+        "middle": 556015,
+        "length": 116
+    }
+}

@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+*.csv
+/Data/distances_with_zeros
+.DS_Store
+*.DS_Store
+.DS_Store
